@@ -21,7 +21,6 @@ jobs:
     - name: 必要なライブラリとPyInstallerのインストール
       run: |
         python -m pip install --upgrade pip
-        # 🛠️ 指定ライブラリの末尾に xlsxwriter を追加しました
         pip install pyinstaller pandas openpyxl customtkinter tkinterdnd2 python-dateutil xlsxwriter
 
     - name: PyInstallerでexeファイルを作成
@@ -33,4 +32,3 @@ jobs:
       with:
         name: Windows-Executable
         path: dist/main.exe
-
