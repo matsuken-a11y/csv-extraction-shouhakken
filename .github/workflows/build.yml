@@ -25,8 +25,8 @@ jobs:
 
     - name: PyInstallerでexeファイルを作成
       run: |
-        # 🛠️ 末尾のファイル名を main.py から app.py に変更しました
-        pyinstaller --onefile --noconsole --collect-all tkinterdnd2 --icon=app_icon.ico app.py
+        # 🛠️ --icon の指定を削除しました
+        pyinstaller --onefile --noconsole --collect-all tkinterdnd2 app.py
 
     - name: 作成したexeファイルを保存してダウンロードできるようにする
       uses: actions/upload-artifact@v4
