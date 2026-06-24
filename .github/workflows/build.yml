@@ -1,1 +1,36 @@
+name: Build Exe
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: コードをチェックアウト
+      uses: actions/checkout@v4
+
+    - name: Pythonのセットアップ
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: 必要なライブラリとPyInstallerのインストール
+      run: |
+        python -m pip install --upgrade pip
+        # 🛠️ 指定ライブラリの末尾に xlsxwriter を追加しました
+        pip install pyinstaller pandas openpyxl customtkinter tkinterdnd2 python-dateutil xlsxwriter
+
+    - name: PyInstallerでexeファイルを作成
+      run: |
+        pyinstaller --onefile --noconsole --collect-all tkinterdnd2 --icon=app_icon.ico main.py
+
+    - name: 作成したexeファイルを保存してダウンロードできるようにする
+      uses: actions/upload-artifact@v4
+      with:
+        name: Windows-Executable
+        path: dist/main.exe
 
