@@ -90,52 +90,50 @@ class App:
         """CSVの抽出処理とユーザー指定先への保存"""
         try:
             # 1. CSVの読み込み（Shift-JIS標準）
+            # header=0 で1行目を見出しとして読み込みますが、位置指定(iloc)を使うため名前のエラーを防げます
             df = pd.read_csv(file_path, encoding='shift_jis')
 
-            # --- 🛠️ 【VBAの移植部分】データ抽出・加工ロジック ---
-            # ⚠️注意：CSVの1行目にある実際の「列の見出し名」と一致させてください。
-            # もしCSVの見出しが F, AF, AH 等ではなく日本語見出しの場合は、その文字列に書き換えてください。
-            
+            # --- 🛠️ 【VBAの移植部分】データ抽出・加工ロジック（列番号指定版） ---
+            # 列番号の定義 (A=0, B=1, ... F=5, I=8, N=13, O=14, AF=31, AH=33, AW=48, AX=49, AY=50)
+            col_f = df.iloc[:, 5]
+            col_af = df.iloc[:, 31]
+            col_ah = df.iloc[:, 33]
+
             # 【条件1の抽出】 F列=1、AF列=102003、AH列=21102010
-            cond1 = (df['F'] == 1) & (df['AF'] == 102003) & (df['AH'] == 21102010)
-            df_cond1 = df[cond1][['I', 'N', 'O', 'AY', 'AW', 'AX']].reset_index(drop=True)
-            df_cond1.columns = ['A', 'B', 'C', 'D', 'E', 'F'] # 左側の列(A~F)に割り当て
+            # 数値と文字列（CSVの読み込み型）のどちらでも一致するよう、両方の条件に対応させています
+            cond1 = (col_f.astype(str) == '1') & (col_af.astype(str) == '102003') & (col_ah.astype(str) == '21102010')
+            df_cond1 = df[cond1].iloc[:, [8, 13, 14, 50, 48, 49]].reset_index(drop=True)
+            df_cond1.columns = ['A', 'B', 'C', 'D', 'E', 'F'] # 左側の列(A~F)
 
             # 【条件2の抽出】 F列=2、AF列=102003、AH列=21102010
-            cond2 = (df['F'] == 2) & (df['AF'] == 102003) & (df['AH'] == 21102010)
-            df_cond2 = df[cond2][['I', 'N', 'O', 'AY', 'AW', 'AX']].reset_index(drop=True)
-            df_cond2.columns = ['J', 'K', 'L', 'M', 'N_out', 'O_out'] # 右側の列(J~O)に割り当て
+            cond2 = (col_f.astype(str) == '2') & (col_af.astype(str) == '102003') & (col_ah.astype(str) == '21102010')
+            df_cond2 = df[cond2].iloc[:, [8, 13, 14, 50, 48, 49]].reset_index(drop=True)
+            df_cond2.columns = ['J', 'K', 'L', 'M', 'N_out', 'O_out'] # 右側の列(J~O)
 
             # --- 💡 【Excel数式の自動計算部分】G列・H列・I列の作成 ---
-            
             # 空のG, H, I列を左側のデータと同じ行数分、初期化
             df_headers = pd.DataFrame(index=df_cond1.index)
             df_headers['G'] = ""
             df_headers['H'] = ""
             df_headers['I'] = ""
 
-            # 右側の O_out (ExcelでのO列) にある値をセットとして取得（高速検索用）
-            o_set = set(df_cond2['O_out'].dropna())
+            # 右側の O_out にある値をセットとして取得（高速検索用）
+            o_set = set(df_cond2['O_out'].dropna().astype(str))
 
-            # 右側の O_out と K (ExcelでのK列) のマッピング辞書を作成（H列のINDEX+MATCH用）
-            mapping_k = dict(zip(df_cond2['O_out'], df_cond2['K']))
-            
-            # 右側の O_out と L (ExcelでのL列) のマッピング辞書を作成（I列のINDEX+MATCH用）
-            mapping_l = dict(zip(df_cond2['O_out'], df_cond2['L']))
+            # 右側データのマッピング辞書を作成
+            mapping_k = dict(zip(df_cond2['O_out'].astype(str), df_cond2['K']))
+            mapping_l = dict(zip(df_cond2['O_out'].astype(str), df_cond2['L']))
 
             # 1行ずつG列、H列、I列の値を計算
             for idx, row in df_cond1.iterrows():
-                f_val = row['F']
+                f_val_str = str(row['F'])
                 
-                # G3の数式に相当：F列の値が右側のO列にあれば「〇」
-                if f_val in o_set:
+                # G3の数式：F列の値が右側のO列にあれば「〇」
+                if f_val_str in o_set:
                     df_headers.at[idx, 'G'] = "〇"
-                    
-                    # H3の数式に相当：一致した右側O列の行にあるK列の値を引っ張る
-                    df_headers.at[idx, 'H'] = mapping_k.get(f_val, "")
-                    
-                    # I3の数式に相当：一致した右側O列の行にあるL列の値を引っ張る
-                    df_headers.at[idx, 'I'] = mapping_l.get(f_val, "")
+                    # H3・I3の数式：一致した右側データからK列・L列の値を引っ張る
+                    df_headers.at[idx, 'H'] = mapping_k.get(f_val_str, "")
+                    df_headers.at[idx, 'I'] = mapping_l.get(f_val_str, "")
                 else:
                     df_headers.at[idx, 'G'] = ""
                     df_headers.at[idx, 'H'] = ""
@@ -144,11 +142,11 @@ class App:
             # 【すべての列を結合】 A~F, G~I, J~O を横に綺麗に並べる
             processed_df = pd.concat([df_cond1, df_headers, df_cond2], axis=1)
             
-            # CSV出力時に見やすいよう、列の順番を固定
+            # CSV出力時の列の順番を固定
             column_order = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N_out', 'O_out']
             processed_df = processed_df.reindex(columns=column_order)
             
-            # 最後に、Excelで見出しが分かりやすいよう通常のアルファベット名に整える
+            # Excelで見出しが分かりやすいよう通常のアルファベット名に統一
             processed_df.columns = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O']
             # --------------------------------------------------
 
